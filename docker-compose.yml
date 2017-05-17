@@ -28,7 +28,7 @@ services:
        mon_net:
           ipv4_address: 172.16.1.13
   opennms:
-    build: ./dockerfile/opennms/.
+    image: opennms/horizon-core-web:18.0.4-1
     env_file:
       - ./env/.opennms.env
       - ./env/.postgres.env
