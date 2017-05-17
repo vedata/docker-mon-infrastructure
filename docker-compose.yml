@@ -1,0 +1,106 @@
+version: '2'
+services:
+  db_data:
+    image: tianon/true
+    volumes:
+      - /var/lib/postgresql/data
+    networks:
+       mon_net:
+          ipv4_address: 172.16.1.11
+  database:
+    image: postgres:9.6.1
+    env_file:
+      - ./env/.postgres.env
+    ports:
+      - "5432:5432"
+    depends_on:
+      - db_data
+    volumes_from:
+      - db_data:rw
+    networks:
+       mon_net:
+          ipv4_address: 172.16.1.12
+  opennms_data:
+    image: tianon/true
+    volumes:
+      - /opennms-data
+    networks:
+       mon_net:
+          ipv4_address: 172.16.1.13
+  opennms:
+    build: ./dockerfile/opennms/.
+    env_file:
+      - ./env/.opennms.env
+      - ./env/.postgres.env
+    depends_on:
+      - database
+      - opennms_data
+    volumes_from:
+      - opennms_data:rw
+    volumes:
+      - /myhost/opennms/etc:/opt/opennms/etc
+    command: ["-s"]
+    ports:
+      - "8980:8980"
+      - "18980:18980"
+      - "1099:1099"
+      - "8101:8101"
+      - "61616:61616"
+      - "5817:5817"
+      - "162:162/udp" 
+    networks:
+       mon_net:
+          ipv4_address: 172.16.1.14
+  grafana_data:
+      image: tianon/true
+      volumes:
+         - /var/lib/grafana
+         - /var/lib/grafana/plugins
+      networks:
+          mon_net:
+             ipv4_address: 172.16.1.15
+  grafana:
+     image: grafana/grafana
+     env_file:
+        - ./env/.grafana.env
+     depends_on:
+        - grafana_data
+     volumes_from:
+        -  grafana_data:rw
+     ports:
+        - "3000:30000"
+     networks:
+        mon_net:
+          ipv4_address: 172.16.1.16
+  jboss:
+     build: ./dockerfile/jboss/.
+     expose:
+        - "8080" 
+     depends_on:
+        - nginx
+     environment:
+       # Image requirement, the virtual host name it will listen too
+       # The virtual host is a group of hosts, containers or anything that responds HTTP
+       VIRTUAL_HOST: 'localhost'
+     networks:
+        mon_net:
+           ipv4_address: 172.16.1.17
+  nginx:
+    image: jwilder/nginx-proxy
+    volumes:
+      # It needs to access Docker's API, so we mount the Unix socket
+      - "/var/run/docker.sock:/tmp/docker.sock:ro"
+    # Listens on port 80, accessed by our host on http://localhost
+    ports:
+      - "80:80"
+    networks:
+       mon_net:
+          ipv4_address: 172.16.1.18
+networks:
+  mon_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.1.0/24
+        gateway: 172.16.1.1
